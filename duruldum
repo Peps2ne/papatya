@@ -5,7 +5,7 @@ function SnowStorm() {
   // PROPERTIES
   // ------------------
 
-  var imagePath = 'https://i.imgur.com/H2w9Z67.png'; // relative path to snow images (including trailing slash)
+  var imagePath = ''; // Görsel yolunu boş bırakıyoruz, çünkü tek bir görsel URL'si kullanacağız
   var flakesMax = 128;
   var flakesMaxActive = 64;
   var vMaxX = 8;
@@ -198,7 +198,7 @@ function SnowStorm() {
     this.o.style.height = flakeHeight+'px';
     this.o.style.fontSize = '1px'; // so IE keeps proper size
     this.o.style.zIndex = zIndex;
-    this.o.src = imagePath+this.type+(pngSupported && usePNG?'.png':'.gif');
+    this.o.src = 'https://i.imgur.com/H2w9Z67.png'; // Görseli burada güncelliyoruz
     document.body.appendChild(this.o);
 
     this.refresh = function() {
@@ -236,164 +236,53 @@ function SnowStorm() {
       if (s.vX && screenX-s.x<flakeWidth+(s.vX*windOffset)) { // X-axis scroll check
         s.x = 0;
       } else if ((s.vX<0 || windOffset<0)&& s.x-flakeLeftOffset<0-flakeWidth) {
-        s.x = screenX-flakeWidth; // flakeWidth;
+        s.x = screenX-flakeWidth-(!isIE?16:8)-flakeRightOffset; // X-axis scroll check
       }
-      var yDiff = screenY+scrollY-s.y-storm.terrain[Math.floor(s.x)];
-      if (yDiff<flakeHeight) {
+      if (s.y>=screenY) {
         s.active = 0;
-        if (snowCollect && snowStick) {
-          var height = [0.75,1.5,0.75];
-          for (var i=0; i<2; i++) {
-            storm.terrain[Math.floor(s.x)+i+2] += height[i];
-          }
-        }
-        s.o.style.left = (s.x/screenX*100)+'%'; // set "relative" left (change with resize)
-        if (!flakeBottom) {
-	      if (snowStick) {
-            s.stick();
-		  } else {
-			s.recycle();
-		  }
-        }
       }
-    }
-
-    this.animate = function() {
-      // main animation loop
-      // move, check status, die etc.
-      s.move();
     }
 
     this.setVelocities = function() {
-      s.vX = vRndX+rnd(vMaxX*0.12,0.1);
-      s.vY = vRndY+rnd(vMaxY*0.12,0.1);
-    }
-
-    this.recycle = function() {
-	  s.o.style.display = 'none';
-      s.o.style.position = 'absolute';
-      s.o.style.bottom = 'auto';
-      s.setVelocities();
+      s.vX = rnd(vMaxX,0.2);
+      s.vY = rnd(vMaxY,0.2);
       s.vCheck();
-      s.x = parseInt(rnd(screenX-flakeWidth-20));
-      s.y = parseInt(rnd(screenY)*-1)-flakeHeight;
-      s.o.style.left = s.x+'px';
-      s.o.style.top = s.y+'px';
-	  s.o.style.display = 'block';
-      s.active = 1;
     }
 
-    this.recycle(); // set up x/y coords etc.
-    this.refresh();
+    this.setVelocities();
 
-  }
-
-  this.snow = function() {
-    var active = 0;
-    var used = 0;
-    var waiting = 0;
-    for (var i=s.flakes.length; i--;) {
-      if (s.flakes[i].active == 1) {
-        s.flakes[i].move();
-        active++;
-      } else if (s.flakes[i].active == 0) {
-        used++;
+    this.timerInit = function() {
+      s.move();
+      if (s.active) {
+        s.timerID = setInterval(s.move, 50);
+        s.timers.push(s.timerID);
       } else {
-        waiting++;
+        clearInterval(s.timerID);
       }
     }
-    if (snowCollect && !waiting) { // !active && !waiting
-      // create another batch of snow
-      s.createSnow(flakesMaxActive,true);
-    }
-    if (active<flakesMaxActive) {
-      with (s.flakes[parseInt(rnd(s.flakes.length))]) {
-        if (!snowCollect && active == 0) {
-          recycle();
-        } else if (active == -1) {
-          active = 1;
-        }
-      }
-    }
-  }
 
-  this.mouseMove = function(e) {
-    if (!followMouse) return true;
-    var x = parseInt(e.clientX);
-    if (x<screenX2) {
-      windOffset = -windMultiplier+(x/screenX2*windMultiplier);
-    } else {
-      x -= screenX2;
-      windOffset = (x/screenX2)*windMultiplier;
-    }
-  }
-
-  this.createSnow = function(limit,allowInactive) {
-    for (var i=0; i<limit; i++) {
-      s.flakes[s.flakes.length] = new s.SnowFlake(s,parseInt(rnd(flakeTypes)));
-      if (allowInactive || i>flakesMaxActive) s.flakes[s.flakes.length-1].active = -1;
-    }
-    targetElement.appendChild(docFrag);
+    this.timerInit();
   }
 
   this.timerInit = function() {
-    s.timers = (!isWin9X?[setInterval(s.snow,20)]:[setInterval(s.snow,75),setInterval(s.snow,25)]);
+    this.flakes = [];
+    for (var i=flakesMax; i--;) {
+      this.flakes.push(new this.SnowFlake(this,Math.floor(rnd(flakeTypes))));
+    }
+    for (var i=0; i<this.timers.length; i++) {
+      clearInterval(this.timers[i]);
+    }
+    this.timers = [];
   }
 
-  this.init = function() {
-    for (var i=0; i<2048; i++) {
-      s.terrain[i] = 0;
-    }
-    s.randomizeWind();
-    s.createSnow(snowCollect?flakesMaxActive:flakesMaxActive*2); // create initial batch
-    addEvent(window,'resize',s.resizeHandler);
-    addEvent(window,'scroll',s.scrollHandler);
-    if (!isIE) {
-      addEvent(window,'blur',s.freeze);
-      addEvent(window,'focus',s.resume);
-    }
-    s.resizeHandler();
-    s.scrollHandler();
-    if (followMouse) {
-      addEvent(document,'mousemove',s.mouseMove);
-    }
-    s.timerInit();
+  this.start = function() {
+    this.resizeHandler();
+    addEvent(window,'scroll',this.scrollHandler);
+    addEvent(window,'resize',this.resizeHandler);
+    this.timerInit();
   }
 
-  var didInit = false;
-
-  this.start = function(bFromOnLoad) {
-	if (!didInit) {
-	  didInit = true;
-	} else if (bFromOnLoad) {
-	  // already loaded and running
-	  return true;
-	}
-    if (typeof targetElement == 'string') {
-      targetElement = document.getElementById(targetElement);
-      if (!targetElement) throw new Error('Snowstorm: Unable to get targetElement');
-    }
-	if (!targetElement) {
-	  targetElement = (!isIE?(document.documentElement?document.documentElement:document.body):document.body);
-	}
-    if (targetElement != document.documentElement && targetElement != document.body) s.resizeHandler = s.resizeHandlerAlt; // re-map handler to get element instead of screen dimensions
-    s.resizeHandler(); // get bounding box elements
-    if (screenX && screenY && !s.disabled) {
-      s.init();
-      s.active = true;
-    }
-  }
-
-  if (document.addEventListener) {
-	// safari 3.0.4 doesn't do DOMContentLoaded, maybe others - use a fallback to be safe.
-	document.addEventListener('DOMContentLoaded',function(){s.start(true)},false);
-    window.addEventListener('load',function(){s.start(true)},false);
-  } else {
-    addEvent(window,'load',function(){s.start(true)});
-  }
-
+  this.start();
 }
 
-
-
-snowStorm = new SnowStorm();
+var snowStormInstance = new SnowStorm();
